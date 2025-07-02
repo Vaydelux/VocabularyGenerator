@@ -2,6 +2,7 @@ import os
 import json
 import random
 import asyncio
+import re
 import telegram
 from telegram import Update
 from telegram.ext import (
@@ -15,14 +16,16 @@ DEFAULT_FILENAME = "vocab.json"  # Your JSON vocabulary file
 BOT_USERNAME = None  # Will be set at startup
 VOCAB_DATA = []      # Global cache
 
+# === Escape function for MarkdownV2 ===
+def escape(text):
+    return re.sub(r'([_*!\[\]()~`>#+=|{}\-.])', r'\\\1', str(text))
+
 # === Format vocab like idioms ===
 def format_vocab(item: dict, index: int) -> str:
-    escape = lambda t: telegram.helpers.escape_markdown(str(t), version=2)
-
     word = f"*{escape(item['phrase'])}*"
     definition = f"💡 *Meaning:* _{escape(item['interpretation'])}_"
 
-    example_lines = ["🧾 *Examples:*"]
+    example_lines = ["💾 *Examples:*"]
     examples = item.get("examples", [])
     if examples:
         for i, ex in enumerate(examples, 1):
@@ -49,7 +52,6 @@ async def send_vocab(bot, chat_id, thread_id, vocab):
         except telegram.error.BadRequest as e:
             print(f"❌ Failed to send message {i}: {e}")
             continue
-
 
 # === /start Handler ===
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -94,14 +96,12 @@ if __name__ == "__main__":
 
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # === Load vocab once and get bot username ===
     async def startup(app):
         global BOT_USERNAME, VOCAB_DATA
         me = await app.bot.get_me()
         BOT_USERNAME = me.username.lower()
         print(f"✅ Bot username set to @{BOT_USERNAME}")
 
-        # Preload the vocab JSON
         try:
             with open(DEFAULT_FILENAME, "r", encoding="utf-8") as f:
                 VOCAB_DATA = json.load(f)
