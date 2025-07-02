@@ -17,14 +17,16 @@ VOCAB_DATA = []      # Global cache
 
 # === Format vocab like idioms ===
 def format_vocab(item: dict, index: int) -> str:
-    word = f"*{telegram.helpers.escape_markdown(item['phrase'], version=2)}*"
-    definition = f"💡 *Meaning:* _{telegram.helpers.escape_markdown(item['interpretation'], version=2)}_"
+    escape = lambda t: telegram.helpers.escape_markdown(str(t), version=2)
+
+    word = f"*{escape(item['phrase'])}*"
+    definition = f"💡 *Meaning:* _{escape(item['interpretation'])}_"
 
     example_lines = ["🧾 *Examples:*"]
     examples = item.get("examples", [])
     if examples:
         for i, ex in enumerate(examples, 1):
-            example_lines.append(f"   ➤ _Example {i}:_ {telegram.helpers.escape_markdown(ex, version=2)}")
+            example_lines.append(f"   ➤ _Example {i}:_ {escape(ex)}")
     else:
         example_lines.append("   ➤ _No examples available._")
 
@@ -34,17 +36,20 @@ def format_vocab(item: dict, index: int) -> str:
 async def send_vocab(bot, chat_id, thread_id, vocab):
     for i, entry in enumerate(vocab, 1):
         msg_text = format_vocab(entry, i)
+        try:
+            msg = await bot.send_message(
+                chat_id=chat_id,
+                text=msg_text,
+                message_thread_id=thread_id,
+                parse_mode="MarkdownV2"
+            )
+            await asyncio.sleep(1.5)
+            await bot.pin_chat_message(chat_id=chat_id, message_id=msg.message_id, disable_notification=True)
+            await asyncio.sleep(1.5)
+        except telegram.error.BadRequest as e:
+            print(f"❌ Failed to send message {i}: {e}")
+            continue
 
-        msg = await bot.send_message(
-            chat_id=chat_id,
-            text=msg_text,
-            message_thread_id=thread_id,
-            parse_mode="MarkdownV2"
-        )
-
-        await asyncio.sleep(1.5)
-        await bot.pin_chat_message(chat_id=chat_id, message_id=msg.message_id, disable_notification=True)
-        await asyncio.sleep(1.5)
 
 # === /start Handler ===
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
