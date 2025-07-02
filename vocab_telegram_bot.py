@@ -13,15 +13,7 @@ from telegram.ext import (
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 DEFAULT_FILENAME = "vocab.json"  # Your JSON vocabulary file
 BOT_USERNAME = None  # Will be set at startup
-
-# === Load vocab ===
-def load_vocab(filename=DEFAULT_FILENAME):
-    try:
-        with open(filename, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception as e:
-        print("❌ Failed to load vocab:", e)
-        return []
+VOCAB_DATA = []      # Global cache
 
 # === Format vocab like idioms ===
 def format_vocab(item: dict, index: int) -> str:
@@ -62,12 +54,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kwargs = {"message_thread_id": thread_id} if thread_id else {}
     await update.message.reply_text("⏳ Preparing 20 vocabulary words...", **kwargs)
 
-    vocab = load_vocab()
-    if not vocab:
-        await context.bot.send_message(chat_id=chat_id, text="❌ Failed to load vocab.", **kwargs)
+    if not VOCAB_DATA:
+        await context.bot.send_message(chat_id=chat_id, text="❌ Vocab data not loaded.", **kwargs)
         return
 
-    selected = random.sample(vocab, min(20, len(vocab)))
+    selected = random.sample(VOCAB_DATA, min(20, len(VOCAB_DATA)))
     await send_vocab(context.bot, chat_id, thread_id, selected)
 
     await context.bot.send_message(chat_id=chat_id, text="🎉 All words sent!", **kwargs)
@@ -98,11 +89,20 @@ if __name__ == "__main__":
 
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
+    # === Load vocab once and get bot username ===
     async def startup(app):
-        global BOT_USERNAME
+        global BOT_USERNAME, VOCAB_DATA
         me = await app.bot.get_me()
         BOT_USERNAME = me.username.lower()
         print(f"✅ Bot username set to @{BOT_USERNAME}")
+
+        # Preload the vocab JSON
+        try:
+            with open(DEFAULT_FILENAME, "r", encoding="utf-8") as f:
+                VOCAB_DATA = json.load(f)
+            print(f"📚 Loaded {len(VOCAB_DATA)} vocabulary entries.")
+        except Exception as e:
+            print(f"❌ Error loading vocab data: {e}")
 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
